@@ -1,0 +1,95 @@
+# To run: modify dir.path, data.path, update.path, and sitetable name in setup section below. 
+#Uses Refined NDVI Data to Generate Historical Review and Estimate the  regions Agri-score depending of start of season
+
+setwd("")
+overallpixels<- read.csv(".csv", header = TRUE,row.names = 1)
+pixelyears <- substr(colnames(overallpixels),2,nchar(rownames(overallpixels)))  #removes the X from the row names
+colnames(overallpixels)<-pixelyears #replace the row names with years without X
+output<-array(data=NA,dim=c(12,length(pixelyears)))
+#Getting monthly averages
+for(k in 1:ncol(overallpixels)){
+  Jan<-sum(overallpixels[1:31,k], na.rm = TRUE)/length(which(!is.na(overallpixels[1:31,k])))
+  Feb<-sum(overallpixels[32:60,k], na.rm = TRUE)/length(which(!is.na(overallpixels[32:60,k])))
+  Mar<-sum(overallpixels[61:91,k], na.rm = TRUE)/length(which(!is.na(overallpixels[61:91,k])))
+  Apr<-sum(overallpixels[92:121,k],na.rm = TRUE)/length(which(!is.na(overallpixels[92:121,k])))
+  May<-sum(overallpixels[122:152,k],na.rm = TRUE)/length(which(!is.na(overallpixels[122:152,k])))
+  Jun<-sum(overallpixels[153:182,k],na.rm = TRUE)/length(which(!is.na(overallpixels[153:182,k])))
+  Jul<-sum(overallpixels[183:213,k],na.rm = TRUE)/length(which(!is.na(overallpixels[183:213,k])))
+  Aug<-sum(overallpixels[214:244,k],na.rm = TRUE)/length(which(!is.na(overallpixels[214:244,k])))
+  Sep<-sum(overallpixels[245:274,k],na.rm = TRUE)/length(which(!is.na(overallpixels[245:274,k])))
+  Oct<-sum(overallpixels[275:305,k],na.rm = TRUE)/length(which(!is.na(overallpixels[275:305,k])))
+  Nov<-sum(overallpixels[306:335,k],na.rm = TRUE)/length(which(!is.na(overallpixels[306:335,k])))
+  Dec<-sum(overallpixels[336:366,k],na.rm = TRUE)/length(which(!is.na(overallpixels[336:366,k])))
+  output[1,k]<-Jan
+  output[2,k]<-Feb
+  output[3,k]<-Mar
+  output[4,k]<-Apr
+  output[5,k]<-May
+  output[6,k]<-Jun
+  output[7,k]<-Jul
+  output[8,k]<-Aug
+  output[9,k]<-Sep
+  output[10,k]<-Oct
+  output[11,k]<-Nov
+  output[12,k]<-Dec
+  rownames(output)<-c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+  colnames(output)<-pixelyears
+  write.csv(output,"NDVIAnalysis.csv")
+  print(k)
+}
+
+#Getting Quarterly Averages and the VCI Values
+#Read in the csv containing the monthly averages
+monthlyaverages<- read.csv("NDVIAnalysis.csv", header = TRUE,row.names = 1)
+pixelyears <- substr(colnames(monthlyaverages),2,nchar(colnames(monthlyaverages)))  #removes the X from the row names
+colnames(monthlyaverages)<-pixelyears #replace the row names with years without X
+output<-array(data=NA,dim=c(4,length(pixelyears)))
+for(j in 1:ncol(monthlyaverages)){
+  Q1average<-sum(monthlyaverages[1:3,j], na.rm = TRUE)/length(which(!is.na(monthlyaverages[1:3,j])))
+  Q1<-(Q1average-min(monthlyaverages[1:3,],na.rm = TRUE))/(max(monthlyaverages[1:3,],na.rm = TRUE)-min(monthlyaverages[1:3,],na.rm = TRUE))
+  Q2average<-sum(monthlyaverages[4:6,j], na.rm = TRUE)/length(which(!is.na(monthlyaverages[4:6,j])))
+  Q2<-(Q2average-min(monthlyaverages[4:6,],na.rm = TRUE))/(max(monthlyaverages[4:6,],na.rm = TRUE)-min(monthlyaverages[4:6,],na.rm = TRUE))
+  Q3average<-sum(monthlyaverages[7:9,j], na.rm = TRUE)/length(which(!is.na(monthlyaverages[7:9,j])))
+  Q3<-(Q3average-min(monthlyaverages[7:9,],na.rm = TRUE))/(max(monthlyaverages[7:9,],na.rm = TRUE)-min(monthlyaverages[7:9,],na.rm = TRUE))
+  Q4average<-sum(monthlyaverages[10:12,j], na.rm = TRUE)/length(which(!is.na(monthlyaverages[10:12,j])))
+  Q4<-(Q4average-min(monthlyaverages[10:12,],na.rm = TRUE))/(max(monthlyaverages[10:12,],na.rm = TRUE)-min(monthlyaverages[10:12,],na.rm = TRUE))
+  output[1,j]<-Q1
+  output[2,j]<-Q2
+  output[3,j]<-Q3
+  output[4,j]<-Q4
+  rownames(output)<-c("Q1","Q2","Q3","Q4")
+  colnames(output)<-pixelyears
+  write.csv(output,"NDVIVCIAnalysis.csv")
+  print(j)
+}
+#Scoring the VCI values
+#load the csv containing the VCI values
+VCIValues<- read.csv("NDVIVCIAnalysis.csv", header = TRUE,row.names = 1)
+pixelyears <- substr(colnames(VCIValues),2,nchar(colnames(VCIValues)))  #removes the X from the row names
+colnames(VCIValues)<-pixelyears #replace the row names with years without X
+output<-array(data=NA,dim=c(nrow(VCIValues),ncol(VCIValues)))
+for(c in 1:ncol(VCIValues)){
+  for(i in 1:nrow(VCIValues)){
+    
+    if((VCIValues[i,c]>=0.5)&(!is.na(VCIValues[i,c]))){
+      output[i,c]<-0.8
+    }else{
+      if((VCIValues[i,c]>=0.4)&(VCIValues[i,c]< 0.5)&(!is.na(VCIValues[i,c]))){
+        output[i,c]<-0.6
+      }else{
+        if((VCIValues[i,c]>=0.3)&(VCIValues[i,c]< 0.4)&(!is.na(VCIValues[i,c]))){
+          output[i,c]<-0.4
+        }else{
+          if((VCIValues[i,c]<0.3)&(!is.na(VCIValues[i,c]))){
+            output[i,c]<-0.2 
+          }
+        }
+      }
+    }
+    rownames(output)<-c("Q1","Q2","Q3","Q4")
+    colnames(output)<-pixelyears
+    write.csv(output,"NDVIVCIScoreAnalysis.csv")
+    print(c)
+  }
+  
+}
