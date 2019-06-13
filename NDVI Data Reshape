@@ -1,0 +1,136 @@
+## To run: modify dir.path, data.path, update.path, and sitetable name in setup section below.  
+## Ensure sitetable has a column heading of "Region" for the site names entry.
+## Ensure the sitetable has column headings of "Latitude" and "Longitude" for the lat/lon coordinates.
+## Requires dolytable.csv to be stored in dir.path if converting from `raw' files to matrix format.
+
+
+#Clear everything
+rm(list=ls(all=TRUE))  
+
+
+## ---- Model Set-up ---- ##
+
+#Option to display warnings in console text.
+options(warn=1)
+
+#Add path to main working directory for this model:
+dir.path <-""  
+setwd(dir.path) # Make dir.path the working directory.
+
+#Add path to directory where you will store downloaded  data (or create directory, if not already existing): 
+data.path<-paste(dir.path,"NDVIdata",sep="/")
+if (!file.exists(data.path)) {dir.create(data.path)}
+
+#---Run code to reshape `raw' downloaded data library files into matrix structure?---
+reshape<-TRUE #Set TRUE to reshape, set FALSE to leave data in raw format
+
+#Set missing data option here (will be applied to data when reshaping from `raw' to matrix format):
+nachoice<-"MISSING" # most accurate
+#nachoice<-"CLIMATE" # set nachoice<-"CLIMATE" to put climatological averages for that day
+#nachoice<-0 # set missing data to zero: most convenient and most conservative
+#---End of section for reshaping data---
+
+if (reshape) {
+  for (region in unique.regions) {
+    #Setting input and output file.name structures
+    f.in<-paste(region,"csv",sep=".")
+    f.out<-paste(region,"csv",sep=".")
+    
+    if (file.exists(paste(update.path,paste("updates",f.in,sep="."),sep="/"))) { #If downloaded only an update to existing data files for this site:
+      #Read in old and updates/new raw data files:
+      rain.old<-read.csv(paste(data.path,f.in,sep="/"),as.is=TRUE)
+      
+      rain.new<-read.csv(paste(data.path,f.out,sep="/"),as.is=TRUE)
+      
+      
+      if (is.na(rain.new[1,dim(rain.new)[2]])) { #If rain.new is NA, abort reshape (indicates reshape previously completed; no new data to add)
+        #Stopping Model Execution:
+        stop("Files Already Reformatted, No New Data to Add: Aborting Reshape")
+      }
+      
+      
+      if (colnames(rain.old)[1]==c("X")) { #Correcting for first column of row numbers, so that dim(rain.old)[2]==dim(rain.in)[2] for rbind
+        rain.old<-rain.old[,-1] #Remove column of row numbers.
+      }
+      
+      #Merge newly downloaded data with old raw data file
+      rain.in<-rbind(rain.old,rain.new)
+      
+      #Write over earlier raw.precip file with newly merged data file (allows future updates to be done with same code)
+      write.csv(rain.in, paste(data.path,f.in,sep="/")) 
+      
+      #Clear and write over updates.raw.precip.daily file to prevent re-merging with the now complete dataset in the future.
+      rain.new<-c(NA)
+      write.csv(rain.new,paste(update.path,paste("updates",f.in,sep="."),sep="/"))
+      
+    } else { #If downloaded the full dataset for this region
+      rain.in<-read.csv(paste(data.path,f.in,sep="/"),as.is=TRUE)
+    }
+    
+    
+    #Display the filename current being restructured:
+    print(paste0("Reshaping: ",f.in))
+    
+    #Read in the dolytable (should be stored in same directory as the sitetable)
+    dolytable<-read.csv(paste(data.path,"dolytable(nonleap).csv",sep="/"),header=TRUE,skip=0)
+    
+    #Adjust missing values to NA
+    rain.in[rain.in < 0]<-NA
+    rain.in[rain.in == ""]<-NA
+    
+    #Creating array to parse dates:
+    datarray<-matrix(data=NA,ncol=6,nrow=nrow(rain.in))
+    colnames(datarray)<-c("d","m","y","p","dm","doly")
+    
+    # Slow loop to take out first col to parse date
+    for (i in 1:nrow(rain.in)) { # loop over rows (days of data)
+      rawdmy<-unlist(strsplit(rain.in[i,2],"-"))
+      datarray[i,"d"]<-type.convert(rawdmy[1])
+      datarray[i,"m"]<-rawdmy[2]
+      datarray[i,"y"]<-type.convert(rawdmy[3])
+      datarray[i,"p"]<-rain.in[i,3]
+      dayofmonth<-datarray[i,"d"]
+      month<-datarray[i,"m"]
+      year<-datarray[i,"y"]
+      rain<- datarray[i,"p"]
+      dm<-paste(dayofmonth,month,sep="-") # create string of day-month for lookup in dolytable
+      datarray[i,"dm"]<-dm
+      doly<-which(dolytable[,2]==dm) # this has day of leap year 
+      datarray[i,"doly"]<-doly
+    } #end for nrow(rainin) loop
+    
+    years<-unique(datarray[,"y"])
+    nyears<-length(years)
+    
+    nadata<-NA   #Covert NA data to 0's if option specified in set-up section at top
+    if (nachoice==0) {nadata<-0}
+    
+    #Creating reformatted rain.out matrix
+    rain.out<-matrix(data=nadata,nrow=366,ncol=nyears)
+    colnames(rain.out)<-years
+    rownames(rain.out)<-dolytable[["date"]]
+    
+    #Slow second loop to construct matrix for all years in this span and fill it
+    #Format will have cols as years, rows as day of year, with leap day included
+    for (i in 1:nrow(rain.in)) { # loop over rows (days of data)
+      year<-datarray[i,"y"]
+      rain<- type.convert(datarray[i,"p"])
+      doly<-type.convert(datarray[i,"doly"])
+      rain.out[doly,which(years==year)]<-rain  
+    } #end nrow(rainin) for loop
+    
+    if (nachoice=="CLIMATE") { # put climatological averages for missing values (if option selected in set-up section)
+      means<-matrix(mean(data.frame(t(rain.out)),na.rm=TRUE)) #calculate climatology for each day
+      missings<-which(is.na(rain.out),arr.ind=TRUE)
+      rain.out[missings]<-means[missings[,1]]
+    } #end nachoice if loop
+    
+    #Writing reshaped output file to data.path directory:
+    file.name<-paste(data.path,f.out,sep="/")
+    write.csv(rain.out,file=file.name,na="",row.names=TRUE)
+    print(paste0("Created ",f.out))
+  } #End of for (regions...) loop converting `raw' data library format to useable matrix structure
+} #End of reshaping code (i.e. end bracket for if (reshape))
+
+
+# ---- End of Code ---- ##
