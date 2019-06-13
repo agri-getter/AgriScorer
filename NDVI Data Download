@@ -1,0 +1,44 @@
+rm(list=ls(all=TRUE))  # clear everything
+
+#set path here
+data.path<-""
+
+# read in csv file to for MND Locations:
+sites<-read.csv(paste(data.path,".csv",sep="/"),header=TRUE,skip=0,row.names=1)
+
+for (i in 1:nrow(sites)) { # loop over sites
+  names<-rownames(sites[i,])
+  
+  Y<-sites[i,"Lat"]
+  X<-sites[i,"Lon"]
+  
+  # download in data library format
+  foutevi<-paste("raw.evi",names,"csv",sep=".")
+  foutmndvi<-paste("raw.m-ndvi",names,"csv",sep=".")
+  foutsndvi<-paste("raw.s-ndvi",names,"csv",sep=".")
+  
+  prexyaddress<-"http://iridl.ldeo.columbia.edu/expert/SOURCES/.USGS/.LandDAAC/.MODIS/.version_005/.SAF/.EVI"
+  postxyaddress<-"CopyStream/T+exch+table-+text+text+skipanyNaN+-table+.csv"
+  xystuff<-paste("X",X,"VALUE/Y",Y,"VALUE",sep="/")
+  address<-paste(prexyaddress,xystuff,postxyaddress,sep="/")
+  file.name<-paste(data.path,foutevi,sep="/")
+  print(address)
+  #download.file(address,file.name,quiet=TRUE)
+  
+  prexyaddress<-"http://iridl.ldeo.columbia.edu/expert/SOURCES/.USGS/.LandDAAC/.MODIS/.version_005/.SAF/.NDVI"
+  postxyaddress<-"CopyStream/T+exch+table-+text+text+skipanyNaN+-table+.csv"
+  xystuff<-paste("X",X,"VALUE/Y",Y,"VALUE",sep="/")
+  address<-paste(prexyaddress,xystuff,postxyaddress,sep="/")
+  file.name<-paste(data.path,foutmndvi,sep="/")
+  print(address)
+  download.file(address,file.name,quiet=TRUE)
+  
+  prexyaddress<-"http://iridl.ldeo.columbia.edu/expert/SOURCES/.CNES/.SPOT/.vegetation/.africa/.NDVI"
+  postxyaddress<-"CopyStream/T+exch+table-+text+text+skipanyNaN+-table+.csv"
+  xystuff<-paste("X",X,"VALUE/Y",Y,"VALUE",sep="/")
+  address<-paste(prexyaddress,xystuff,postxyaddress,sep="/")
+  file.name<-paste(data.path,foutsndvi,sep="/")
+  print(address)
+  #download.file(address,file.name,quiet=TRUE)
+  
+} #end for nrow(sites) loop.
